@@ -17,8 +17,17 @@ def load_thermal_data(filename):
 
 def analyze_thermal_data(df):
     """Analyze thermal data by calculating weekly averages."""
-    # Get the cycle numbers (first column)
-    cycles = df.iloc[:, 0].values
+    # Generate cycle numbers based on row index (since first column no longer contains cycles)
+    # Skip rows that are completely empty or contain metadata
+    valid_data_rows = []
+    for idx in range(len(df)):
+        row = df.iloc[idx]
+        # Check if row has any numeric data
+        numeric_cols = row.iloc[1:].apply(pd.to_numeric, errors='coerce')
+        if numeric_cols.notna().any():
+            valid_data_rows.append(idx)
+    
+    cycles = np.arange(1, len(valid_data_rows) + 1)
     
     # Dictionary to store results for each test condition
     results = {}
@@ -60,56 +69,66 @@ def analyze_thermal_data(df):
         
         print(f"Data columns: {[df.columns[idx] for idx in data_cols]}")
         
-        # Group by SVF (50%, 35%, 20%)
+        # Group by SVF (50%, 35%, 20%) and dynamically determine weeks per SVF
         svf_levels = ['50%', '35%', '20%']
         condition_results = {}
 
-        # Assume 3 columns per SVF (3 weeks each)
-        for svf_idx, svf in enumerate(svf_levels):
-            # Get 3 columns for this SVF
-            start_idx = svf_idx * 3
-            end_idx = start_idx + 3
-            
-            if start_idx < len(data_cols) and end_idx <= len(data_cols):
-                svf_cols = data_cols[start_idx:end_idx]
-                svf_col_names = [df.columns[idx] for idx in svf_cols]
-
-                print(f"  {svf} columns: {svf_col_names}")
-
-                # Extract data and convert to numeric
-                svf_data = df.iloc[:, svf_cols].copy()
+        # Parse the column structure to identify SVF sections and their weeks
+        svf_sections = {'50%': [], '35%': [], '20%': []}
+        
+        for col_idx in data_cols:
+            col_name = df.columns[col_idx]
+            for svf in svf_levels:
+                if svf in col_name:
+                    svf_sections[svf].append(col_idx)
+                    break
+        
+        for svf in svf_levels:
+            svf_cols = svf_sections[svf]
+            if not svf_cols:
+                continue
                 
-                # Convert to numeric, replacing empty strings and non-numeric values with NaN
+            svf_col_names = [df.columns[idx] for idx in svf_cols]
+            print(f"  {svf} columns: {svf_col_names}")
+
+            # Extract data and convert to numeric, but only from valid data rows
+            svf_data_list = []
+            for row_idx in valid_data_rows:
+                row_data = []
                 for col_idx in svf_cols:
-                    svf_data.iloc[:, svf_cols.index(col_idx)] = pd.to_numeric(df.iloc[:, col_idx], errors='coerce')
+                    val = pd.to_numeric(df.iloc[row_idx, col_idx], errors='coerce')
+                    row_data.append(val)
+                svf_data_list.append(row_data)
+            
+            svf_data = pd.DataFrame(svf_data_list, columns=svf_col_names)
 
-                # Calculate average across weeks (excluding NaN values)
-                averages = svf_data.mean(axis=1, skipna=True)
-                
-                # Store individual week data as well
-                week_data = {}
-                for week_idx, col_idx in enumerate(svf_cols):
-                    week_num = week_idx + 1
-                    week_values = pd.to_numeric(df.iloc[:, col_idx], errors='coerce')
-                    valid_week_mask = ~week_values.isna()
-                    if valid_week_mask.any():
-                        week_data[f'week{week_num}'] = {
-                            'cycles': cycles[valid_week_mask],
-                            'values': week_values[valid_week_mask].values
-                        }
-
-                # Only keep rows where we have at least one valid measurement
-                valid_mask = ~averages.isna()
-                
-                if valid_mask.any():
-                    condition_results[svf] = {
-                        'cycles': cycles[valid_mask],
-                        'averages': averages[valid_mask].values,
-                        'weeks': week_data
+            # Calculate average across weeks (excluding NaN values)
+            averages = svf_data.mean(axis=1, skipna=True)
+            
+            # Store individual week data as well
+            week_data = {}
+            for week_idx, col_idx in enumerate(svf_cols):
+                week_num = week_idx + 1
+                week_values = svf_data.iloc[:, week_idx]
+                valid_week_mask = ~week_values.isna()
+                if valid_week_mask.any():
+                    week_data[f'week{week_num}'] = {
+                        'cycles': cycles[valid_week_mask],
+                        'values': week_values[valid_week_mask].values
                     }
-                    print(f"    {svf}: {len(averages[valid_mask])} valid data points")
-                else:
-                    print(f"    {svf}: No valid data points")
+
+            # Only keep rows where we have at least one valid measurement
+            valid_mask = ~averages.isna()
+            
+            if valid_mask.any():
+                condition_results[svf] = {
+                    'cycles': cycles[valid_mask],
+                    'averages': averages[valid_mask].values,
+                    'weeks': week_data
+                }
+                print(f"    {svf}: {len(averages[valid_mask])} valid data points")
+            else:
+                print(f"    {svf}: No valid data points")
 
         results[condition] = condition_results
     
@@ -216,12 +235,12 @@ def plot_weekly_comparisons(results):
             temperature_mapping[temp_level] = []
         temperature_mapping[temp_level].append(condition)
 
-    # Create plots for each week (1, 2, 3)
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    # Create plots for each week (1, 2, 3, 4)
+    fig, axes = plt.subplots(1, 4, figsize=(24, 6))
     fig.suptitle('Weekly Comparison: 95A vs 90A vs 87A', fontsize=16)
     
-    weeks = ['week1', 'week2', 'week3']
-    week_labels = ['Week 1', 'Week 2', 'Week 3']
+    weeks = ['week1', 'week2', 'week3', 'week4']
+    week_labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4']
     svf_levels = ['50%', '35%', '20%']
     
     # Define unique colors for each temperature and SVF combination
@@ -303,8 +322,8 @@ def plot_week_differences(results):
             temperature_mapping[temp_level] = []
         temperature_mapping[temp_level].append(condition)
 
-    # Create plots for differences (Week2-Week1, Week3-Week1)
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    # Create plots for differences (Week2-Week1, Week3-Week1, Week4-Week1)
+    fig, axes = plt.subplots(1, 3, figsize=(24, 6))
     fig.suptitle('Temperature Differences Between Weeks', fontsize=16)
     
     svf_levels = ['50%', '35%', '20%']
@@ -324,7 +343,8 @@ def plot_week_differences(results):
     
     diff_configs = [
         ('Week 2 - Week 1', 'week2', 'week1'),
-        ('Week 3 - Week 1', 'week3', 'week1')
+        ('Week 3 - Week 1', 'week3', 'week1'),
+        ('Week 4 - Week 1', 'week4', 'week1')
     ]
     
     for diff_idx, (diff_label, week_later, week_base) in enumerate(diff_configs):
