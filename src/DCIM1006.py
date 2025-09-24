@@ -9,8 +9,8 @@ from src import uniTThermalImage
 import matplotlib.pyplot as plt
 
 # Directory containing BMP images
-image_dir = r"C:\Users\OEM\OneDrive\Documents\FYP Images\DCIM_1006"
-output_csv = r"C:\Users\OEM\OneDrive\Documents\FYP Images\DCIM_1006\thermal_data.csv"
+image_dir = os.path.join(project_root, "DCIM_1006")
+output_csv = os.path.join(project_root, "DCIM_1006", "thermal_data.csv")
 
 # Collect all BMP files
 bmp_files = [f for f in os.listdir(image_dir) if f.lower().endswith('.bmp')]
