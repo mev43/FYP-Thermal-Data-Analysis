@@ -644,6 +644,10 @@ def calculate_csv_statistics(results, csv_file):
         wk1_temps = []
         peak_temps = []
         
+        # Collect Week 1 peak temperatures for each set separately
+        wk1_set_peak_temps = []
+        wk1_peak_to_initial_diffs = []
+        
         # Process both 1st and 2nd conditions
         for condition, svf in [(cond1, svf1), (cond2, svf2)]:
             if condition in results and svf in results[condition]:
@@ -651,29 +655,35 @@ def calculate_csv_statistics(results, csv_file):
                 if 'weeks' in results[condition][svf] and 'week1' in results[condition][svf]['weeks']:
                     wk1_data = results[condition][svf]['weeks']['week1']['values']
                     wk1_temps.extend(wk1_data)
+                    
+                    # Calculate peak temperature and peak-to-initial difference for this set
+                    if len(wk1_data) > 0:
+                        set_wk1_temps = np.array(wk1_data)
+                        set_initial_temp = set_wk1_temps[0]
+                        set_peak_temp = np.max(set_wk1_temps)
+                        wk1_set_peak_temps.append(set_peak_temp)
+                        wk1_peak_to_initial_diffs.append(set_peak_temp - set_initial_temp)
                 
                 # Get all temperature data for total statistics
                 if 'weeks' in results[condition][svf]:
                     for week_key, week_data in results[condition][svf]['weeks'].items():
                         all_temps.extend(week_data['values'])
         
-        if wk1_temps:
-            wk1_temps = np.array(wk1_temps)
-            # Calculate peak-to-initial temperature difference for Week 1
-            initial_temp = wk1_temps[0]
-            peak_temp = np.max(wk1_temps)
-            
-            wk1_mean_change = peak_temp - initial_temp  # Peak-to-initial difference for Week 1
-            wk1_peak_temp = peak_temp  # Actual peak temperature for Week 1
-            wk1_max_temp_change = peak_temp - initial_temp  # Same as mean change for single week
+        if wk1_set_peak_temps:
+            # Mean of peak temperatures across sets for Week 1
+            wk1_peak_temp = np.mean(wk1_set_peak_temps)
+            # Mean of peak-to-initial differences across sets for Week 1
+            wk1_mean_change = np.mean(wk1_peak_to_initial_diffs)
+            wk1_max_temp_change = wk1_mean_change  # Same as mean change
         else:
             wk1_mean_change = np.nan
             wk1_peak_temp = np.nan
             wk1_max_temp_change = np.nan
         
         if all_temps:
-            # Calculate peak-to-initial temperature differences for each set
+            # Calculate peak-to-initial temperature differences for each set and collect peak temperatures
             peak_to_initial_differences = []
+            weekly_peak_temps = []
             
             # Process both 1st and 2nd conditions (sets)
             for condition, svf in [(cond1, svf1), (cond2, svf2)]:
@@ -684,6 +694,9 @@ def calculate_csv_statistics(results, csv_file):
                         for week_key, week_data in results[condition][svf]['weeks'].items():
                             week_temps = week_data['values']
                             set_temps.extend(week_temps)
+                            # Collect peak temperature for each week
+                            if len(week_temps) > 0:
+                                weekly_peak_temps.append(np.max(week_temps))
                         
                         if len(set_temps) > 0:
                             set_temps = np.array(set_temps)
@@ -711,9 +724,11 @@ def calculate_csv_statistics(results, csv_file):
                 temp_change_variation = np.nan
                 total_relative_std = np.nan
                 
-            # Peak temperature across all measurements
-            all_temps = np.array(all_temps)
-            total_peak_temp = np.max(all_temps)
+            # Peak temperature: mean of peak temperatures across all weeks
+            if weekly_peak_temps:
+                total_peak_temp = np.mean(weekly_peak_temps)
+            else:
+                total_peak_temp = np.nan
         else:
             total_mean_change = np.nan
             total_peak_temp = np.nan
