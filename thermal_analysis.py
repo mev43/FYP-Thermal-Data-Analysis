@@ -170,7 +170,7 @@ def plot_material_svf_comparison(results, output_dir):
             fig, ax = plt.subplots(1, 1, figsize=(10, 6))
             # Extract material number from condition (e.g., "95A" from "95A 1st")
             material_num = condition.split()[0]
-            fig.suptitle(f'SVF Comparison - Filament TPU{material_num} (Test {week_num})', fontsize=16)
+            fig.suptitle(f'SVF Comparison - Filament TPU{material_num} (Test {week_num} Temperature Histories)', fontsize=16)
             
             has_data = False
             for svf in ['50%', '35%', '20%']:
@@ -247,7 +247,7 @@ def plot_svf_material_comparison(results, output_dir):
                 week_key = f'week{week_num}'
                 
                 fig, ax = plt.subplots(1, 1, figsize=(12, 6))
-                fig.suptitle(f'SVF {svf} Materials - Test {week_num}', fontsize=16)
+                fig.suptitle(f'Material Comparison - SVF {svf} (Test {week_num} Temperature Histories)', fontsize=16)
                 
                 has_data = False
                 for material in ['95A', '90A', '87A']:
@@ -280,104 +280,6 @@ def plot_svf_material_comparison(results, output_dir):
                 else:
                     plt.close()
 
-def plot_comprehensive_test_differences(results, output_dir):
-    """Create comprehensive test difference plots showing all tests for each material-SVF combination, separated by sets."""
-    # Define colors for different tests
-    test_colors = ['#FF4444', '#4444FF', '#44AA44', '#FFA500', '#800080']
-    
-    # For each material and SVF combination
-    for material in ['95A', '90A', '87A']:
-        for svf in ['50%', '35%', '20%']:
-            # Find all conditions for this material
-            material_conditions = []
-            for condition in results.keys():
-                if material in condition:
-                    material_conditions.append(condition)
-            
-            if not material_conditions:
-                continue
-            
-            # Find all available weeks across all conditions for this material-SVF combo
-            all_weeks = set()
-            for condition in material_conditions:
-                if condition in results and svf in results[condition] and 'weeks' in results[condition][svf]:
-                    all_weeks.update(results[condition][svf]['weeks'].keys())
-            
-            week_numbers = sorted([int(w.replace('week', '')) for w in all_weeks if w.startswith('week')])
-            
-            if len(week_numbers) < 2:  # Need at least 2 tests for differences
-                continue
-            
-            # Create comprehensive plots showing all test differences together for each set separately
-            base_week_key = 'week1'
-            diff_weeks = [w for w in week_numbers if w != 1]
-            
-            if len(diff_weeks) > 0:
-                # Create separate plots for each set
-                for set_type in ['1st', '2nd']:
-                    fig, ax = plt.subplots(1, 1, figsize=(14, 8))
-                    fig.suptitle(f'Filament TPU{material} SVF {svf} - All Test Differences vs Test 1 (Set {set_type})', fontsize=16)
-                    
-                    has_data = False
-                    legend_entries = set()
-                    
-                    for week_num in diff_weeks:
-                        week_key = f'week{week_num}'
-                        color_idx = (week_num - 2) % len(test_colors)  # -2 because we skip test 1
-                        
-                        for condition in material_conditions:
-                            if (f'{set_type}' in condition and condition in results and svf in results[condition] and 
-                                'weeks' in results[condition][svf] and 
-                                week_key in results[condition][svf]['weeks'] and 
-                                base_week_key in results[condition][svf]['weeks']):
-                                
-                                current_week = results[condition][svf]['weeks'][week_key]
-                                base_week = results[condition][svf]['weeks'][base_week_key]
-                                
-                                # Find common cycles
-                                current_cycles = set(current_week['cycles'])
-                                base_cycles = set(base_week['cycles'])
-                                common_cycles = sorted(current_cycles & base_cycles)
-                                
-                                if common_cycles:
-                                    differences = []
-                                    for cycle in common_cycles:
-                                        current_idx = list(current_week['cycles']).index(cycle)
-                                        base_idx = list(base_week['cycles']).index(cycle)
-                                        diff = current_week['values'][current_idx] - base_week['values'][base_idx]
-                                        differences.append(diff)
-                                    
-                                    label = f'Test {week_num} - Test 1'
-                                    
-                                    if label not in legend_entries:
-                                        ax.plot(common_cycles, differences, 
-                                               color=test_colors[color_idx], marker='o', markersize=3, 
-                                               linewidth=2, label=label, alpha=0.8)
-                                        legend_entries.add(label)
-                                    else:
-                                        ax.plot(common_cycles, differences, 
-                                               color=test_colors[color_idx], marker='o', markersize=3, 
-                                               linewidth=2, alpha=0.8)
-                                    
-                                    has_data = True
-                    
-                    if has_data:
-                        ax.axhline(y=0, color='black', linestyle='-', alpha=0.5)
-                        ax.set_xlabel('Cycle Number')
-                        ax.set_ylabel('Temperature Difference (°C)')
-                        ax.legend()
-                        ax.grid(True, alpha=0.3)
-                        
-                        plt.tight_layout()
-                        
-                        # Save plot
-                        filename = f'TPU{material}_{svf.replace("%", "percent")}_all_test_differences_set{set_type}.png'
-                        plt.savefig(os.path.join(output_dir, filename), dpi=300, bbox_inches='tight')
-                        plt.close()
-                        print(f"Saved: {filename}")
-                    else:
-                        plt.close()
-
 def plot_all_weeks_raw_data(results, output_dir):
     """Plot all weeks of raw data together for each material/SVF combination."""
     # Define colors for different weeks
@@ -391,7 +293,7 @@ def plot_all_weeks_raw_data(results, output_dir):
                     fig, ax = plt.subplots(1, 1, figsize=(12, 8))
                     # Extract material and condition info for title
                     material_num = condition.split()[0]  # e.g., "95A" from "95A 1st"
-                    fig.suptitle(f'All Tests - Filament TPU{material_num} SVF {svf}', fontsize=16)
+                    fig.suptitle(f'All Tests - Filament TPU{material_num} SVF {svf} Temperature Histories', fontsize=16)
                     
                     # Sort week keys by week number
                     week_keys = sorted(weeks.keys(), key=lambda x: int(x.replace('week', '')))
@@ -442,7 +344,7 @@ def plot_week_differences_from_first(results, output_dir):
                     # Extract material and condition info for title
                     material_num = condition.split()[0]  # e.g., "95A" from "95A 1st"
                     first_test_num = first_week_key.replace("week", "")
-                    fig.suptitle(f'Filament TPU{material_num} SVF {svf} - Test Differences from Test {first_test_num}', fontsize=16)
+                    fig.suptitle(f'Filament TPU{material_num} SVF {svf} - Test Temperature History Differences from Test {first_test_num}', fontsize=16)
                     
                     has_data = False
                     for i, week_key in enumerate(week_keys[1:], 1):  # Skip first week
@@ -486,247 +388,6 @@ def plot_week_differences_from_first(results, output_dir):
                         print(f"Saved: {filename}")
                     else:
                         plt.close()
-
-def plot_material_week_differences(results, output_dir):
-    """For each material condition, create separate plots for each week difference comparison."""
-    colors = {'50%': '#FF4444', '35%': '#4444FF', '20%': '#44AA44'}
-    
-    for condition, data in results.items():
-        if not data:
-            continue
-        
-        # Determine available weeks across all SVF levels
-        all_weeks = set()
-        for svf in ['50%', '35%', '20%']:
-            if svf in data and 'weeks' in data[svf]:
-                all_weeks.update(data[svf]['weeks'].keys())
-        
-        week_numbers = sorted([int(w.replace('week', '')) for w in all_weeks if w.startswith('week')])
-        if len(week_numbers) < 2:  # Need at least 2 weeks for differences
-            continue
-        
-        # Create separate plots for each week difference (Week N - Week 1)
-        diff_weeks = week_numbers[1:]  # All weeks except the first
-        
-        for week_num in diff_weeks:
-            week_key = f'week{week_num}'
-            base_week_key = 'week1'
-            
-            fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-            # Extract material number from condition
-            material_num = condition.split()[0]
-            fig.suptitle(f'Filament TPU{material_num} - Test {week_num} vs Test 1 Difference', fontsize=16)
-            
-            has_data = False
-            for svf in ['50%', '35%', '20%']:
-                if (svf in data and 'weeks' in data[svf] and 
-                    week_key in data[svf]['weeks'] and base_week_key in data[svf]['weeks']):
-                    
-                    current_week = data[svf]['weeks'][week_key]
-                    base_week = data[svf]['weeks'][base_week_key]
-                    
-                    # Find common cycles
-                    current_cycles = set(current_week['cycles'])
-                    base_cycles = set(base_week['cycles'])
-                    common_cycles = sorted(current_cycles & base_cycles)
-                    
-                    if common_cycles:
-                        differences = []
-                        for cycle in common_cycles:
-                            current_idx = list(current_week['cycles']).index(cycle)
-                            base_idx = list(base_week['cycles']).index(cycle)
-                            diff = current_week['values'][current_idx] - base_week['values'][base_idx]
-                            differences.append(diff)
-                        
-                        ax.plot(common_cycles, differences, 
-                               color=colors[svf], marker='o', markersize=4, linewidth=2,
-                               label=f'{svf}')
-                        has_data = True
-            
-            if has_data:
-                ax.axhline(y=0, color='black', linestyle='-', alpha=0.5)
-                ax.set_xlabel('Cycle Number')
-                ax.set_ylabel('Temperature Difference (°C)')
-                ax.legend()
-                ax.grid(True, alpha=0.3)
-                
-                plt.tight_layout()
-                
-                # Save plot
-                filename = f'{condition.replace(" ", "_")}_week{week_num}_vs_week1_differences.png'
-                plt.savefig(os.path.join(output_dir, filename), dpi=300, bbox_inches='tight')
-                plt.close()
-                print(f"Saved: {filename}")
-            else:
-                plt.close()
-
-def plot_svf_week_differences(results, output_dir):
-    """For each SVF level, create separate plots for each week difference comparison, separating 1st and 2nd sets."""
-    # Extract material and set information
-    materials = {'95A': {'1st': [], '2nd': []}, '90A': {'1st': [], '2nd': []}, '87A': {'1st': [], '2nd': []}}
-    
-    for condition in results.keys():
-        material = None
-        set_type = None
-        
-        if '95A' in condition:
-            material = '95A'
-        elif '90A' in condition:
-            material = '90A'
-        elif '87A' in condition:
-            material = '87A'
-        
-        if '1st' in condition:
-            set_type = '1st'
-        elif '2nd' in condition:
-            set_type = '2nd'
-        
-        if material and set_type:
-            materials[material][set_type].append(condition)
-    
-    # Colors for different materials and sets
-    material_colors = {
-        '95A': {'1st': '#FF0000', '2nd': '#FF6666'},  # Red shades
-        '90A': {'1st': '#0066FF', '2nd': '#6699FF'},  # Blue shades
-        '87A': {'1st': '#00AA00', '2nd': '#66CC66'}   # Green shades
-    }
-
-    def plot_week0_vs_weeks(results, output_dir):
-        """Plot raw Week 0 vs Week N for each material/SVF combination."""
-        colors = ['#FF4444', '#4444FF']
-        for condition, data in results.items():
-            for svf in ['50%', '35%', '20%']:
-                if svf in data and 'weeks' in data[svf]:
-                    weeks = data[svf]['weeks']
-                    if 'week0' in weeks:
-                        week0 = weeks['week0']
-                        week_keys = [wk for wk in weeks.keys() if wk != 'week0' and wk.startswith('week')]
-                        for wk in sorted(week_keys, key=lambda x: int(x.replace('week',''))):
-                            fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-                            # Extract material number from condition
-                            material_num = condition.split()[0]
-                            wk_num = wk.replace('week', '')
-                            fig.suptitle(f'Filament TPU{material_num} SVF {svf} - Test 0 vs Test {wk_num} (Raw)', fontsize=15)
-                            ax.plot(week0['cycles'], week0['values'], color=colors[0], marker='o', markersize=4, linewidth=2, label='Test 0')
-                            weekN = weeks[wk]
-                            ax.plot(weekN['cycles'], weekN['values'], color=colors[1], marker='o', markersize=4, linewidth=2, label=f'Test {wk_num}')
-                            ax.set_xlabel('Cycle Number')
-                            ax.set_ylabel('Temperature (°C)')
-                            ax.legend()
-                            ax.grid(True, alpha=0.3)
-                            plt.tight_layout()
-                            filename = f'{condition.replace(" ", "_")}_{svf.replace("%", "percent")}_week0_vs_{wk}_raw.png'
-                            plt.savefig(os.path.join(output_dir, filename), dpi=300, bbox_inches='tight')
-                            plt.close()
-                            print(f"Saved: {filename}")
-
-    def plot_week0_vs_weeks_difference(results, output_dir):
-        """Plot Week N - Week 0 differences for each material/SVF combination."""
-        color = '#44AA44'
-        for condition, data in results.items():
-            for svf in ['50%', '35%', '20%']:
-                if svf in data and 'weeks' in data[svf]:
-                    weeks = data[svf]['weeks']
-                    if 'week0' in weeks:
-                        week0 = weeks['week0']
-                        week_keys = [wk for wk in weeks.keys() if wk != 'week0' and wk.startswith('week')]
-                        for wk in sorted(week_keys, key=lambda x: int(x.replace('week',''))):
-                            weekN = weeks[wk]
-                            cycles0 = set(week0['cycles'])
-                            cyclesN = set(weekN['cycles'])
-                            common_cycles = sorted(cycles0 & cyclesN)
-                            if common_cycles:
-                                differences = []
-                                for cycle in common_cycles:
-                                    idx0 = list(week0['cycles']).index(cycle)
-                                    idxN = list(weekN['cycles']).index(cycle)
-                                    diff = weekN['values'][idxN] - week0['values'][idx0]
-                                    differences.append(diff)
-                                fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-                                # Extract material number from condition
-                                material_num = condition.split()[0]
-                                wk_num = wk.replace('week', '')
-                                fig.suptitle(f'Filament TPU{material_num} SVF {svf} - Test {wk_num} minus Test 0', fontsize=15)
-                                ax.plot(common_cycles, differences, color=color, marker='o', markersize=4, linewidth=2, label=f'Test {wk_num} - Test 0')
-                                ax.axhline(y=0, color='black', linestyle='-', alpha=0.5)
-                                ax.set_xlabel('Cycle Number')
-                                ax.set_ylabel('Temperature Difference (°C)')
-                                ax.legend()
-                                ax.grid(True, alpha=0.3)
-                                plt.tight_layout()
-                                filename = f'{condition.replace(" ", "_")}_{svf.replace("%", "percent")}_{wk}_minus_week0_difference.png'
-                                plt.savefig(os.path.join(output_dir, filename), dpi=300, bbox_inches='tight')
-                                plt.close()
-                                print(f"Saved: {filename}")
-    
-    for svf in ['50%', '35%', '20%']:
-        # Determine available weeks for this SVF
-        all_weeks = set()
-        for condition, data in results.items():
-            if svf in data and 'weeks' in data[svf]:
-                all_weeks.update(data[svf]['weeks'].keys())
-        
-        week_numbers = sorted([int(w.replace('week', '')) for w in all_weeks if w.startswith('week')])
-        if len(week_numbers) < 2:
-            continue
-        
-        # Create separate plots for each week difference and each set
-        diff_weeks = week_numbers[1:]
-        
-        for set_type in ['1st', '2nd']:
-            for week_num in diff_weeks:
-                week_key = f'week{week_num}'
-                base_week_key = 'week1'
-                
-                fig, ax = plt.subplots(1, 1, figsize=(12, 6))
-                fig.suptitle(f'SVF {svf} - Test {week_num} vs Test 1 Differences', fontsize=16)
-                
-                has_data = False
-                for material in ['95A', '90A', '87A']:
-                    for condition in materials[material][set_type]:
-                        if (condition in results and svf in results[condition] and 
-                            'weeks' in results[condition][svf] and 
-                            week_key in results[condition][svf]['weeks'] and 
-                            base_week_key in results[condition][svf]['weeks']):
-                            
-                            current_week = results[condition][svf]['weeks'][week_key]
-                            base_week = results[condition][svf]['weeks'][base_week_key]
-                            
-                            # Find common cycles
-                            current_cycles = set(current_week['cycles'])
-                            base_cycles = set(base_week['cycles'])
-                            common_cycles = sorted(current_cycles & base_cycles)
-                            
-                            if common_cycles:
-                                differences = []
-                                for cycle in common_cycles:
-                                    current_idx = list(current_week['cycles']).index(cycle)
-                                    base_idx = list(base_week['cycles']).index(cycle)
-                                    diff = current_week['values'][current_idx] - base_week['values'][base_idx]
-                                    differences.append(diff)
-                                
-                                color = material_colors[material][set_type]
-                                ax.plot(common_cycles, differences, 
-                                       color=color, marker='o', markersize=4, linewidth=2,
-                                       label=f'Filament TPU{material}')
-                                has_data = True
-                
-                if has_data:
-                    ax.axhline(y=0, color='black', linestyle='-', alpha=0.5)
-                    ax.set_xlabel('Cycle Number')
-                    ax.set_ylabel('Temperature Difference (°C)')
-                    ax.legend()
-                    ax.grid(True, alpha=0.3)
-                    
-                    plt.tight_layout()
-                    
-                    # Save plot
-                    filename = f'{svf.replace("%", "percent")}_SVF_{set_type}_set_week{week_num}_vs_week1_differences.png'
-                    plt.savefig(os.path.join(output_dir, filename), dpi=300, bbox_inches='tight')
-                    plt.close()
-                    print(f"Saved: {filename}")
-                else:
-                    plt.close()
 
 def calculate_csv_statistics(results, csv_file):
     """Calculate statistics and update the CSV file sections."""
