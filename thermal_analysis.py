@@ -390,13 +390,19 @@ def plot_week_differences_from_first(results, output_dir):
                         plt.close()
 
 def calculate_csv_statistics(results, csv_file):
-    """Calculate statistics and update the CSV file sections."""
-    print("\nCalculating statistics for CSV file...")
-    
-    # Read the CSV file
+    """Calculate statistics and update the CSV file sections (corrected method).
+
+    Changes vs previous version:
+    - Peak-to-initial differences are computed PER WEEK PER SET (1st/2nd) instead of a
+      single set-wide difference using the very first reading across all weeks.
+    - Week 1 metrics use only week1 data; total metrics aggregate all available weeks.
+    - Relative standard deviation uses sample std (ddof=1) when >=2 values.
+    - Results remain written to a copy of the CSV: *original file untouched*.
+    """
+    print("\nCalculating statistics for CSV file (per-week, per-set baselines)...")
+
     df = pd.read_csv(csv_file)
-    
-    # Define material-SVF combinations
+
     combinations = [
         ('95A - 50%', '95A 1st', '50%', '95A 2nd', '50%'),
         ('95A - 35%', '95A 1st', '35%', '95A 2nd', '35%'),
@@ -408,159 +414,158 @@ def calculate_csv_statistics(results, csv_file):
         ('87A - 35%', '87A 1st', '35%', '87A 2nd', '35%'),
         ('87A - 20%', '87A 1st', '20%', '87A 2nd', '20%')
     ]
-    
-    # Calculate statistics for each combination
+
     stats_data = {}
-    
+
+    # Configuration for RSD calculation to mirror Excel if desired
+    # rsd_week_filter: list of week numbers to include (e.g., [1,2]) or None for all
+    rsd_week_filter = None  # Set to [1,2] if you want only first two weeks like the Excel example
+    use_population_rsd = True  # Excel used STDEV.P, so population std
+
     for combo_name, cond1, svf1, cond2, svf2 in combinations:
-        # Collect all temperature data for this combination
-        all_temps = []
-        wk1_temps = []
-        peak_temps = []
-        
-        # Collect Week 1 peak temperatures for each set separately
-        wk1_set_peak_temps = []
-        wk1_peak_to_initial_diffs = []
-        
-        # Process both 1st and 2nd conditions
+        per_week_diffs = []   # all weeks both sets
+        per_week_peaks = []   # peak per week per set
+        wk1_diffs = []        # week1 only per set
+        wk1_peaks = []
+
         for condition, svf in [(cond1, svf1), (cond2, svf2)]:
-            if condition in results and svf in results[condition]:
-                # Get week 1 temperatures for Wk1 statistics
-                if 'weeks' in results[condition][svf] and 'week1' in results[condition][svf]['weeks']:
-                    wk1_data = results[condition][svf]['weeks']['week1']['values']
-                    wk1_temps.extend(wk1_data)
-                    
-                    # Calculate peak temperature and peak-to-initial difference for this set
-                    if len(wk1_data) > 0:
-                        set_wk1_temps = np.array(wk1_data)
-                        set_initial_temp = set_wk1_temps[0]
-                        set_peak_temp = np.max(set_wk1_temps)
-                        wk1_set_peak_temps.append(set_peak_temp)
-                        wk1_peak_to_initial_diffs.append(set_peak_temp - set_initial_temp)
-                
-                # Get all temperature data for total statistics
-                if 'weeks' in results[condition][svf]:
-                    for week_key, week_data in results[condition][svf]['weeks'].items():
-                        all_temps.extend(week_data['values'])
-        
-        if wk1_set_peak_temps:
-            # Mean of peak temperatures across sets for Week 1
-            wk1_peak_temp = np.mean(wk1_set_peak_temps)
-            # Mean of peak-to-initial differences across sets for Week 1
-            wk1_mean_change = np.mean(wk1_peak_to_initial_diffs)
-            wk1_max_temp_change = wk1_mean_change  # Same as mean change
-        else:
-            wk1_mean_change = np.nan
-            wk1_peak_temp = np.nan
-            wk1_max_temp_change = np.nan
-        
-        if all_temps:
-            # Calculate peak-to-initial temperature differences for each set and collect peak temperatures
-            peak_to_initial_differences = []
-            weekly_peak_temps = []
-            
-            # Process both 1st and 2nd conditions (sets)
+            if condition not in results or svf not in results[condition]:
+                continue
+            svf_obj = results[condition][svf]
+            if 'weeks' not in svf_obj:
+                continue
+            for week_key, week_data in svf_obj['weeks'].items():
+                values = week_data['values']
+                if len(values) == 0:
+                    continue
+                arr = np.asarray(values, dtype=float)
+                initial = arr[0]
+                peak = np.nanmax(arr)
+                diff = peak - initial
+                per_week_diffs.append(diff)
+                per_week_peaks.append(peak)
+                if week_key == 'week1':
+                    wk1_diffs.append(diff)
+                    wk1_peaks.append(peak)
+
+        # Optionally filter weeks for RSD calculation (to emulate Excel references to specific weeks)
+        if rsd_week_filter is not None:
+            filtered_diffs = []
+            # Need to re-derive diffs in the same order; recompute with filter
+            filtered_diffs = []
             for condition, svf in [(cond1, svf1), (cond2, svf2)]:
-                if condition in results and svf in results[condition]:
-                    if 'weeks' in results[condition][svf]:
-                        # Collect all temperatures for this set across all weeks
-                        set_temps = []
-                        for week_key, week_data in results[condition][svf]['weeks'].items():
-                            week_temps = week_data['values']
-                            set_temps.extend(week_temps)
-                            # Collect peak temperature for each week
-                            if len(week_temps) > 0:
-                                weekly_peak_temps.append(np.max(week_temps))
-                        
-                        if len(set_temps) > 0:
-                            set_temps = np.array(set_temps)
-                            # Use first measurement as initial temperature for this set
-                            initial_temp = set_temps[0]
-                            # Find peak temperature for this set
-                            peak_temp = np.max(set_temps)
-                            # Calculate peak-to-initial difference for this set
-                            peak_to_initial_diff = peak_temp - initial_temp
-                            peak_to_initial_differences.append(peak_to_initial_diff)
-            
-            if peak_to_initial_differences:
-                peak_to_initial_differences = np.array(peak_to_initial_differences)
-                
-                # Mean temp change: average of peak-to-initial differences across sets
-                total_mean_change = np.mean(peak_to_initial_differences)
-                
-                # Temperature change variation: standard deviation of peak-to-initial differences
-                temp_change_variation = np.std(peak_to_initial_differences)
-                
-                # Relative standard deviation
-                total_relative_std = ((temp_change_variation / total_mean_change) * 100) if total_mean_change != 0 else np.nan
+                if condition not in results or svf not in results[condition]:
+                    continue
+                svf_obj = results[condition][svf]
+                if 'weeks' not in svf_obj:
+                    continue
+                for week_key, week_data in svf_obj['weeks'].items():
+                    try:
+                        wk_num = int(week_key.replace('week',''))
+                    except ValueError:
+                        continue
+                    if wk_num not in rsd_week_filter:
+                        continue
+                    vals = week_data['values']
+                    if len(vals) == 0:
+                        continue
+                    a = np.asarray(vals, dtype=float)
+                    filtered_diffs.append(np.nanmax(a) - a[0])
+            rsd_diffs = filtered_diffs if filtered_diffs else per_week_diffs
+        else:
+            rsd_diffs = per_week_diffs
+
+        # Week 1 stats
+        wk1_mean_change = float(np.mean(wk1_diffs)) if wk1_diffs else np.nan
+        wk1_peak_temp = float(np.mean(wk1_peaks)) if wk1_peaks else np.nan
+        wk1_max_temp_change = wk1_mean_change  # retained for legacy field
+
+        # Total stats (all weeks)
+        if per_week_diffs:
+            total_mean_change = float(np.mean(per_week_diffs))
+            # Sample variation for information
+            if len(rsd_diffs) > 1:
+                sample_std = float(np.std(rsd_diffs, ddof=1))
+                population_std = float(np.std(rsd_diffs, ddof=0))
             else:
-                total_mean_change = np.nan
-                temp_change_variation = np.nan
-                total_relative_std = np.nan
-                
-            # Peak temperature: mean of peak temperatures across all weeks
-            if weekly_peak_temps:
-                total_peak_temp = np.mean(weekly_peak_temps)
+                sample_std = np.nan
+                population_std = np.nan
+            if (not np.isnan(total_mean_change) and total_mean_change != 0):
+                total_relative_std_sample = (sample_std / total_mean_change) * 100 if not np.isnan(sample_std) else np.nan
+                total_relative_std_population = (population_std / total_mean_change) * 100 if not np.isnan(population_std) else np.nan
             else:
-                total_peak_temp = np.nan
+                total_relative_std_sample = np.nan
+                total_relative_std_population = np.nan
+            total_relative_std = (total_relative_std_population if use_population_rsd else total_relative_std_sample)
         else:
             total_mean_change = np.nan
-            total_peak_temp = np.nan
-            temp_change_variation = np.nan
             total_relative_std = np.nan
-        
+            total_relative_std_sample = np.nan
+            total_relative_std_population = np.nan
+
+        total_peak_temp = float(np.mean(per_week_peaks)) if per_week_peaks else np.nan
+
         stats_data[combo_name] = {
             'wk1_mean_change': wk1_mean_change,
             'wk1_peak_temp': wk1_peak_temp,
             'wk1_max_temp_change': wk1_max_temp_change,
             'total_mean_change': total_mean_change,
             'total_peak_temp': total_peak_temp,
-            'total_relative_std': total_relative_std
+            'total_relative_std': total_relative_std,
+            'total_relative_std_sample': total_relative_std_sample if 'total_relative_std_sample' in locals() else np.nan,
+            'total_relative_std_population': total_relative_std_population if 'total_relative_std_population' in locals() else np.nan,
+            'per_week_diffs_used_for_rsd': rsd_diffs  # for debugging / traceability
         }
-    
-    # Update the CSV file
-    print("Updating CSV file with statistics...")
-    
-    # Find the statistics section rows
+
+    # ---- Write updated stats back to copy of CSV ----
+    print("Updating CSV file with per-week statistics...")
+
     wk1_section_start = None
     total_section_start = None
-    
     for idx, row in df.iterrows():
-        if pd.notna(row.iloc[0]) and 'Wk1' in str(row.iloc[0]):
+        first = str(row.iloc[0]) if pd.notna(row.iloc[0]) else ''
+        if 'Wk1' in first:
             wk1_section_start = idx
-        elif pd.notna(row.iloc[0]) and 'Total' in str(row.iloc[0]):
+        elif first.startswith('Total'):
             total_section_start = idx
-    
+
+    def fmt(val):
+        return f"{val:.2f}" if (val is not None and not np.isnan(val)) else ''
+
     if wk1_section_start is not None:
-        # Fill Wk1 statistics
-        for combo_name, _, _, _, _ in combinations:
-            for idx, row in df.iterrows():
-                if idx > wk1_section_start and pd.notna(row.iloc[0]) and combo_name in str(row.iloc[0]):
-                    if not np.isnan(stats_data[combo_name]['wk1_mean_change']):
-                        df.iloc[idx, 1] = f"{stats_data[combo_name]['wk1_mean_change']:.2f}"
-                    if not np.isnan(stats_data[combo_name]['wk1_peak_temp']):
-                        df.iloc[idx, 2] = f"{stats_data[combo_name]['wk1_peak_temp']:.2f}"
+        for combo_name, *_ in combinations:
+            for idx in range(wk1_section_start + 1, len(df)):
+                cell = df.iloc[idx, 0]
+                if pd.notna(cell) and combo_name in str(cell):
+                    df.iloc[idx, 1] = fmt(stats_data[combo_name]['wk1_mean_change'])
+                    df.iloc[idx, 2] = fmt(stats_data[combo_name]['wk1_peak_temp'])
                     break
-    
+
     if total_section_start is not None:
-        # Fill Total statistics
-        for combo_name, _, _, _, _ in combinations:
-            for idx, row in df.iterrows():
-                if idx > total_section_start and pd.notna(row.iloc[0]) and combo_name in str(row.iloc[0]):
-                    if not np.isnan(stats_data[combo_name]['total_mean_change']):
-                        df.iloc[idx, 1] = f"{stats_data[combo_name]['total_mean_change']:.2f}"
-                    if not np.isnan(stats_data[combo_name]['total_peak_temp']):
-                        df.iloc[idx, 2] = f"{stats_data[combo_name]['total_peak_temp']:.2f}"
-                    if not np.isnan(stats_data[combo_name]['total_relative_std']):
-                        df.iloc[idx, 3] = f"{stats_data[combo_name]['total_relative_std']:.2f}"
+        for combo_name, *_ in combinations:
+            for idx in range(total_section_start + 1, len(df)):
+                cell = df.iloc[idx, 0]
+                if pd.notna(cell) and combo_name in str(cell):
+                    df.iloc[idx, 1] = fmt(stats_data[combo_name]['total_mean_change'])
+                    df.iloc[idx, 2] = fmt(stats_data[combo_name]['total_peak_temp'])
+                    df.iloc[idx, 3] = fmt(stats_data[combo_name]['total_relative_std'])
                     break
-    
-    # Save the updated CSV
+
     updated_file = csv_file.replace('.csv', '_with_peak_statistics.csv')
-    df.to_csv(updated_file, index=False)
-    print(f"CSV file with peak-based statistics saved as: {updated_file}")
-    print("Original file left unchanged due to permission restrictions.")
-    
+    try:
+        df.to_csv(updated_file, index=False)
+        print(f"CSV file with per-week peak-based statistics saved as: {updated_file}")
+    except PermissionError as e:
+        # Likely the file is open in Excel; create a timestamped alternative
+        import datetime
+        ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        alt_file = csv_file.replace('.csv', f'_with_peak_statistics_{ts}.csv')
+        df.to_csv(alt_file, index=False)
+        print("PermissionError writing primary output (possibly open in Excel). Saved instead as:", alt_file)
+    except OSError as e:
+        print("OS error while saving updated CSV:", e)
+    print("Original file left unchanged.")
+
     return stats_data
 
 def print_statistics(results):
