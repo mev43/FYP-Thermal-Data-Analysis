@@ -85,7 +85,7 @@ def analyze_thermal_data(df):
                 continue
                 
             svf_col_names = [df.columns[idx] for idx in svf_cols]
-            print(f"  {svf} columns: {svf_col_names}")
+            print(f"  SVF {svf} columns: {svf_col_names}")
 
             # Extract data and convert to numeric, but only from valid data rows
             svf_data_list = []
@@ -122,9 +122,9 @@ def analyze_thermal_data(df):
                     'averages': averages[valid_mask].values,
                     'weeks': week_data
                 }
-                print(f"    {svf}: {len(averages[valid_mask])} valid data points")
+                print(f"    SVF {svf}: {len(averages[valid_mask])} valid data points")
             else:
-                print(f"    {svf}: No valid data points")
+                print(f"    SVF {svf}: No valid data points")
 
         results[condition] = condition_results
     
@@ -170,7 +170,7 @@ def plot_material_svf_comparison(results, output_dir):
             fig, ax = plt.subplots(1, 1, figsize=(10, 6))
             # Extract material number from condition (e.g., "95A" from "95A 1st")
             material_num = condition.split()[0]
-            # fig.suptitle(f'SVF Comparison - Filament TPU{material_num} (Test {week_num} Temperature Histories)', fontsize=16)
+            # fig.suptitle(f'SVF Comparison - Filament {material_num} (Test {week_num} Temperature Histories)', fontsize=16)
             
             has_data = False
             for svf in ['50%', '35%', '20%']:
@@ -178,13 +178,13 @@ def plot_material_svf_comparison(results, output_dir):
                     week_data = data[svf]['weeks'][week_key]
                     ax.plot(week_data['cycles'], week_data['values'], 
                            color=colors[svf], marker='o', markersize=4, linewidth=2,
-                           label=f'{svf}')
+                           label=f'SVF {svf}')
                     has_data = True
             
             if has_data:
-                ax.set_xlabel('Cycle Number', fontsize=14)
-                ax.set_ylabel('Temperature (°C)', fontsize=14)
-                ax.legend(fontsize=14)
+                ax.set_xlabel('Cycle Number', fontsize=16)
+                ax.set_ylabel('Temperature (°C)', fontsize=16)
+                ax.legend(fontsize=16)
                 ax.grid(True, alpha=0.3)
                 ax.tick_params(axis='both', which='major', labelsize=14)
                 
@@ -251,6 +251,13 @@ def plot_svf_material_comparison(results, output_dir):
                 # fig.suptitle(f'Material Comparison - SVF {svf} (Test {week_num} Temperature Histories)', fontsize=16)
                 
                 has_data = False
+                # Label mapping to match requested wording
+                material_label_map = {
+                    '95A': '95A TPU',
+                    '90A': 'TPU90',
+                    '87A': '87A TPU'
+                }
+
                 for material in ['95A', '90A', '87A']:
                     for condition in materials[material][set_type]:
                         if (condition in results and svf in results[condition] and 
@@ -259,16 +266,17 @@ def plot_svf_material_comparison(results, output_dir):
                             
                             week_data = results[condition][svf]['weeks'][week_key]
                             color = material_colors[material][set_type]
+                            label = material_label_map.get(material, f'TPU{material}')
                             
                             ax.plot(week_data['cycles'], week_data['values'], 
                                    color=color, marker='o', markersize=4, linewidth=2,
-                                   label=f'Filament TPU{material}')
+                                   label=label)
                             has_data = True
                 
                 if has_data:
-                    ax.set_xlabel('Cycle Number', fontsize=14)
-                    ax.set_ylabel('Temperature (°C)', fontsize=14)
-                    ax.legend(fontsize=14)
+                    ax.set_xlabel('Cycle Number', fontsize=16)
+                    ax.set_ylabel('Temperature (°C)', fontsize=16)
+                    ax.legend(fontsize=16)
                     ax.grid(True, alpha=0.3)
                     ax.tick_params(axis='both', which='major', labelsize=14)
                     
@@ -295,7 +303,7 @@ def plot_all_weeks_raw_data(results, output_dir):
                     fig, ax = plt.subplots(1, 1, figsize=(12, 8))
                     # Extract material and condition info for title
                     material_num = condition.split()[0]  # e.g., "95A" from "95A 1st"
-                    # fig.suptitle(f'All Tests - Filament TPU{material_num} SVF {svf} Temperature Histories', fontsize=16)
+                    # fig.suptitle(f'All Tests - Filament {material_num} SVF {svf} Temperature Histories', fontsize=16)
                     
                     # Sort week keys by week number
                     week_keys = sorted(weeks.keys(), key=lambda x: int(x.replace('week', '')))
@@ -312,9 +320,9 @@ def plot_all_weeks_raw_data(results, output_dir):
                         has_data = True
                     
                     if has_data:
-                        ax.set_xlabel('Cycle Number', fontsize=14)
-                        ax.set_ylabel('Temperature (°C)', fontsize=14)
-                        ax.legend(fontsize=14)
+                        ax.set_xlabel('Cycle Number', fontsize=16)
+                        ax.set_ylabel('Temperature (°C)', fontsize=16)
+                        ax.legend(fontsize=16)
                         ax.grid(True, alpha=0.3)
                         ax.tick_params(axis='both', which='major', labelsize=14)
                         
@@ -347,7 +355,7 @@ def plot_week_differences_from_first(results, output_dir):
                     # Extract material and condition info for title
                     material_num = condition.split()[0]  # e.g., "95A" from "95A 1st"
                     first_test_num = first_week_key.replace("week", "")
-                    # fig.suptitle(f'Filament TPU{material_num} SVF {svf} - Test Temperature History Differences from Test {first_test_num}', fontsize=16)
+                    # fig.suptitle(f'Filament {material_num} SVF {svf} - Test Temperature History Differences from Test {first_test_num}', fontsize=16)
                     
                     has_data = False
                     for i, week_key in enumerate(week_keys[1:], 1):  # Skip first week
@@ -377,9 +385,9 @@ def plot_week_differences_from_first(results, output_dir):
                     
                     if has_data:
                         ax.axhline(y=0, color='black', linestyle='-', alpha=0.5)
-                        ax.set_xlabel('Cycle Number', fontsize=14)
-                        ax.set_ylabel('Temperature Difference (°C)', fontsize=14)
-                        ax.legend(fontsize=14)
+                        ax.set_xlabel('Cycle Number', fontsize=16)
+                        ax.set_ylabel('Temperature Difference (°C)', fontsize=16)
+                        ax.legend(fontsize=16)
                         ax.grid(True, alpha=0.3)
                         ax.tick_params(axis='both', which='major', labelsize=14)
                         
@@ -583,7 +591,7 @@ def print_statistics(results):
         for SVF_level, svf_data in data.items():
             if svf_data['averages'].size > 0:
                 temps = svf_data['averages']
-                print(f"  {SVF_level}:")
+                print(f"  SVF {SVF_level}:")
                 print(f"    Count: {len(temps)}")
                 print(f"    Mean: {np.mean(temps):.2f}°C")
                 print(f"    Std: {np.std(temps):.2f}°C")
