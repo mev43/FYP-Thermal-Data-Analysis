@@ -47,9 +47,20 @@ for bmp_file in bmp_files:
         if annotated_count < 5:
             plt.imshow(obj_uti.raw_img_rgb_np)
             plt.scatter(point[1], point[0], c='red', s=60, label=f'Point {point}')
-            plt.title(f'{bmp_file} with point {point}')
-            plt.legend()
-            plt.savefig(os.path.join(image_dir, f'example_annotated_{annotated_count+1}.png'))
+            # Remove axes and title for a cleaner image
+            plt.axis('off')
+            # Make background transparent and legend frameless
+            fig = plt.gcf()
+            ax = plt.gca()
+            ax.set_facecolor('none')
+            fig.patch.set_alpha(0)
+            plt.legend(frameon=False)
+            plt.savefig(
+                os.path.join(image_dir, f'example_annotated_{annotated_count+1}.png'),
+                transparent=True,
+                bbox_inches='tight',
+                pad_inches=0
+            )
             plt.close()
             annotated_count += 1
     except Exception as e:
@@ -59,9 +70,20 @@ for bmp_file in bmp_files:
 for i, (bmp_file, img_rgb_np) in enumerate(valid_images[-5:], 1):
     plt.imshow(img_rgb_np)
     plt.scatter(point[1], point[0], c='blue', s=60, label=f'Point {point}')
-    plt.title(f'{bmp_file} with point {point} (last {i})')
-    plt.legend()
-    plt.savefig(os.path.join(image_dir, f'example_annotated_last_{i}.png'))
+    # Remove axes and title for a cleaner image
+    plt.axis('off')
+    # Make background transparent and legend frameless
+    fig = plt.gcf()
+    ax = plt.gca()
+    ax.set_facecolor('none')
+    fig.patch.set_alpha(0)
+    plt.legend(frameon=False)
+    plt.savefig(
+        os.path.join(image_dir, f'example_annotated_last_{i}.png'),
+        transparent=True,
+        bbox_inches='tight',
+        pad_inches=0
+    )
     plt.close()
 
 # Write results to CSV
